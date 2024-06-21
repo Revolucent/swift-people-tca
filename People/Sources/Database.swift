@@ -45,12 +45,19 @@ class Database {
         table.uniqueKey(["name", "address"])
       }
     }
+    try migrator.migrate(queue)
   }
 }
 
 extension Database: DependencyKey {
   static var liveValue: Database {
-    try! .init()
+    let database = try! Database()
+    let previewPeople = [
+      NewPerson(name: "Genghis Khan", address: "555 5th Street\nQueens NY 10000"),
+      NewPerson(name: "Flip MacGillicuddy", address: "103 Whiskey Road\nDublin FL 34222"),
+    ]
+    try! database.save(previewPeople)
+    return database
   }
   
   static var previewValue: Database {
@@ -65,6 +72,8 @@ extension Database: DependencyKey {
 }
 
 struct NewPerson: Codable, Equatable, PersistableRecord {
+  static let databaseTableName: String = "person"
+  
   var name: String
   var address: String
 }
