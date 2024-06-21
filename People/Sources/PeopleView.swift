@@ -12,7 +12,7 @@ import SwiftUI
 @Reducer
 struct PeopleFeature {
   @Dependency(Database.self) var database
-  
+
   @ObservableState
   struct State {
     var people: IdentifiedArrayOf<Person> = []

@@ -67,16 +67,9 @@ extension Database: DependencyKey {
     let previewPeople = [
       NewPerson(name: "Genghis Khan", address: "555 5th Street\nQueens NY 10000"),
       NewPerson(name: "Flip MacGillicuddy", address: "103 Whiskey Road\nDublin FL 34222"),
-    ]
-    try! database.save(previewPeople)
-    return database
-  }
-  
-  static var previewValue: Database {
-    let database = try! Database()
-    let previewPeople = [
-      NewPerson(name: "Genghis Khan", address: "555 5th Street\nQueens NY 10000"),
-      NewPerson(name: "Flip MacGillicuddy", address: "103 Whiskey Road\nDublin FL 34222"),
+      NewPerson(name: "Blob McBlobbins", address: "947 Skipadoo Alley\nWashing Nuts WA 98001"),
+      NewPerson(name: "Eric Bloodaxe", address: "780 Annodomini Avenue\nNorway MA 02108"),
+      NewPerson(name: "Zaphod Beeblebrox", address: "555 Arthur St\nDent MI 48001")
     ]
     try! database.save(previewPeople)
     return database
