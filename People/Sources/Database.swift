@@ -17,7 +17,7 @@ class Database {
     try migrate()
   }
   
-  func save<T: PersistableRecord>(_ records: [T]) throws {
+  func save<T>(_ records: any Sequence<T>) throws where T: PersistableRecord {
     try queue.write { db in
       for record in records {
         try record.save(db)
@@ -29,7 +29,7 @@ class Database {
     try save(records)
   }
   
-  func delete<T: PersistableRecord>(_ records: [T]) throws {
+  func delete<T>(_ records: any Sequence<T>) throws where T: PersistableRecord {
     try queue.write { db in
       for record in records {
         try record.delete(db)
