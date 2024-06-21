@@ -17,6 +17,24 @@ class Database {
     try migrate()
   }
   
+  func save<T: PersistableRecord>(_ records: [T]) throws {
+    try queue.write { db in
+      for record in records {
+        try record.save(db)
+      }
+    }
+  }
+  
+  func save<T: PersistableRecord>(_ records: T...) throws {
+    try save(records)
+  }
+  
+  func fetchAllPeople() throws -> [Person] {
+    try queue.read { db in
+      try Person.order(Column("name")).fetchAll(db)
+    }
+  }
+  
   private func migrate() throws {
     var migrator = DatabaseMigrator()
     migrator.registerMigration("v1") { db in
@@ -34,4 +52,25 @@ extension Database: DependencyKey {
   static var liveValue: Database {
     try! .init()
   }
+  
+  static var previewValue: Database {
+    let database = try! Database()
+    let previewPeople = [
+      NewPerson(name: "Genghis Khan", address: "555 5th Street\nQueens NY 10000"),
+      NewPerson(name: "Flip MacGillicuddy", address: "103 Whiskey Road\nDublin FL 34222"),
+    ]
+    try! database.save(previewPeople)
+    return database
+  }
+}
+
+struct NewPerson: Codable, Equatable, PersistableRecord {
+  var name: String
+  var address: String
+}
+
+struct Person: Codable, Equatable, PersistableRecord, FetchableRecord, TableRecord, Identifiable {
+  var id: Int64
+  var name: String
+  var address: String
 }
