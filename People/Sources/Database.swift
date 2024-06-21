@@ -29,6 +29,18 @@ class Database {
     try save(records)
   }
   
+  func delete<T: PersistableRecord>(_ records: [T]) throws {
+    try queue.write { db in
+      for record in records {
+        try record.delete(db)
+      }
+    }
+  }
+  
+  func delete<T: PersistableRecord>(_ records: T...) throws {
+    try delete(records)
+  }
+  
   func fetchAllPeople() throws -> [Person] {
     try queue.read { db in
       try Person.order(Column("name")).fetchAll(db)

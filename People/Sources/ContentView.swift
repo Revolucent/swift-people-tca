@@ -12,7 +12,10 @@ struct AppFeature {
   }
   
   var body: some ReducerOf<AppFeature> {
-    Scope(state: \.people, action: \.people) { PeopleFeature() }
+    Scope(
+      state: \.people,
+      action: \.people
+    ) { PeopleFeature() }
   }
 }
 
