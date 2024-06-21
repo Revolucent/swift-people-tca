@@ -3,22 +3,16 @@ import SwiftUI
 
 @Reducer
 struct AppFeature {
-  @Dependency(Database.self) var database
-  
-  @ObservableState
   struct State {
-    var people: IdentifiedArrayOf<Person> = []
-    
-    init() {
-      fetchPeople()
-    }
-    
-    mutating func fetchPeople() {
-      @Dependency(Database.self) var database
-      people = IdentifiedArray(
-        uniqueElements: (try? database.fetchAllPeople()) ?? []
-      )
-    }
+    var people: PeopleFeature.State = .init()
+  }
+  
+  enum Action {
+    case people(PeopleFeature.Action)
+  }
+  
+  var body: some ReducerOf<AppFeature> {
+    Scope(state: \.people, action: \.people) { PeopleFeature() }
   }
 }
 
@@ -29,8 +23,7 @@ public struct ContentView: View {
   )
 
   public var body: some View {
-    Text("Hello, World!")
-      .padding()
+    PeopleView(store: store.scope(state: \.people, action: \.people))
   }
 }
 
