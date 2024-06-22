@@ -87,7 +87,7 @@ struct PeopleFeature {
 }
 
 struct PeopleView: View {
-  @Bindable var store: StoreOf<PeopleFeature>
+  var store: StoreOf<PeopleFeature>
   @Environment(\.horizontalSizeClass) var horizontalSizeClass
 
   public var body: some View {
@@ -108,6 +108,7 @@ struct PeopleView: View {
                 Image(systemName: "trash")
                   .foregroundStyle(Color.red)
               }
+              .contentShape(Rectangle())
             }
             .padding(.vertical, 4)
           } else {
