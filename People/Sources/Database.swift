@@ -5,6 +5,7 @@
 //  Created by Gregory Higley on 2024-06-21.
 //
 
+import ComposableArchitecture
 import Foundation
 import Dependencies
 import GRDB
@@ -41,10 +42,22 @@ class Database {
     try delete(records)
   }
   
-  func fetchAllPeople() throws -> [Person] {
+  func fetchAll<T: FetchableRecord & TableRecord>(_ request: QueryInterfaceRequest<T>) throws -> some Sequence<T> {
     try queue.read { db in
-      try Person.order(Column("name")).fetchAll(db)
+      try request.fetchAll(db)
     }
+  }
+  
+  func fetchAll<T: FetchableRecord & TableRecord>(_ type: T.Type = T.self) throws -> some Sequence<T> {
+    try fetchAll(T.all())
+  }
+  
+  func fetchIdentifiedArray<T: FetchableRecord & TableRecord & Identifiable>(_ request: QueryInterfaceRequest<T>) throws -> IdentifiedArrayOf<T> {
+    try IdentifiedArray(uniqueElements: fetchAll(request))
+  }
+  
+  func fetchIdentifiedArray<T: FetchableRecord & TableRecord & Identifiable>(of type: T.Type = T.self) throws -> IdentifiedArrayOf<T> {
+    try IdentifiedArray(uniqueElements: fetchAll())
   }
   
   private func migrate() throws {
@@ -69,7 +82,8 @@ extension Database: DependencyKey {
       NewPerson(name: "Flip MacGillicuddy", address: "103 Whiskey Road\nDublin FL 34222"),
       NewPerson(name: "Blob McBlobbins", address: "947 Skipadoo Alley\nWashing Nuts WA 98001"),
       NewPerson(name: "Eric Bloodaxe", address: "780 Annodomini Avenue\nNorway MA 02108"),
-      NewPerson(name: "Zaphod Beeblebrox", address: "555 Arthur St\nDent MI 48001")
+      NewPerson(name: "Zaphod Beeblebrox", address: "555 Arthur St\nDent MI 48001"),
+      NewPerson(name: "Hugh Jass", address: "123 Nowhere Fast Ave.\nSmiths Village FL 34000"),
     ]
     try! database.save(previewPeople)
     return database
