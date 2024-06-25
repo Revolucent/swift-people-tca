@@ -40,7 +40,7 @@ struct PeopleFeature {
     case confirm(PresentationAction<ConfirmationAction>)
     case person(PresentationAction<PersonFeature.Action>)
     case binding(BindingAction<State>)
-    case onDeleteButtonPressed(ID<Int64>)
+    case onDeleteButtonTapped(ID<Int64>)
     case onRowTapped(Person)
     case onPullToRefresh
   }
@@ -76,7 +76,7 @@ struct PeopleFeature {
         return .none
       case .binding:
         return .none
-      case let .onDeleteButtonPressed(id):
+      case let .onDeleteButtonTapped(id):
         guard let person = state.people[id: id] else {
           return .none
         }
@@ -116,24 +116,10 @@ struct PeopleView: View {
       List {
         ForEach(store.people) { person in
           if horizontalSizeClass == .compact {
-            ZStack(alignment: .topTrailing) {
-              VStack(alignment: .leading, spacing: 8) {
-                Text(person.name)
-                Text(person.address)
-                  .lineLimit(nil)
-              }
-              .frame(maxWidth: .infinity, alignment: .leading)
-//              Button {
-//                store.send(.onDeleteButtonPressed(person.id))
-//              } label: {
-//                Image(systemName: "trash")
-//                  .foregroundStyle(Color.red)
-//              }
-//              .contentShape(Rectangle())
-            }
-            .padding(.vertical, 4)
-            .onTapGesture {
+            Row(person: person) {
               store.send(.onRowTapped(person))
+            } delete: {
+              store.send(.onDeleteButtonTapped(person.id))
             }
           } else {
             HStack {
@@ -160,6 +146,35 @@ struct PeopleView: View {
         PersonView(store: store)
       }
     }
+  }
+}
+
+struct Row: View {
+  let person: Person
+  let action: () -> Void
+  let delete: () -> Void
+  
+  var body: some View {
+    HStack(alignment: .top) {
+      VStack(alignment: .leading, spacing: 8) {
+        Text(person.name)
+        Text(person.address)
+          .lineLimit(nil)
+      }
+      .frame(maxWidth: .infinity, alignment: .leading)
+      .contentShape(Rectangle())
+      .onTapGesture {
+        action()
+      }
+      Button {
+        delete()
+      } label: {
+        Image(systemName: "trash")
+          .foregroundStyle(Color.red)
+          .contentShape(Rectangle())
+      }
+    }
+    .padding(.vertical, 4)
   }
 }
 
