@@ -171,7 +171,6 @@ struct Row: View {
       } label: {
         Image(systemName: "trash")
           .foregroundStyle(Color.red)
-          .contentShape(Rectangle())
       }
     }
     .padding(.vertical, 4)
