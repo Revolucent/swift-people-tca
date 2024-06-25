@@ -78,27 +78,20 @@ extension Database: DependencyKey {
   static var liveValue: Database {
     let database = try! Database()
     let previewPeople = [
-      NewPerson(name: "Genghis Khan", address: "555 5th Street\nQueens NY 10000"),
-      NewPerson(name: "Flip MacGillicuddy", address: "103 Whiskey Road\nDublin FL 34222"),
-      NewPerson(name: "Blob McBlobbins", address: "947 Skipadoo Alley\nWashing Nuts WA 98001"),
-      NewPerson(name: "Eric Bloodaxe", address: "780 Annodomini Avenue\nNorway MA 02108"),
-      NewPerson(name: "Zaphod Beeblebrox", address: "555 Arthur St\nDent MI 48001"),
-      NewPerson(name: "Hugh Jass", address: "123 Nowhere Fast Ave.\nSmiths Village FL 34000"),
+      Person(name: "Genghis Khan", address: "555 5th Street\nQueens NY 10000"),
+      Person(name: "Flip MacGillicuddy", address: "103 Whiskey Road\nDublin FL 34222"),
+      Person(name: "Blob McBlobbins", address: "947 Skipadoo Alley\nWashing Nuts WA 98001"),
+      Person(name: "Eric Bloodaxe", address: "780 Annodomini Avenue\nNorway MA 02108"),
+      Person(name: "Zaphod Beeblebrox", address: "555 Arthur St\nDent MI 48001"),
+      Person(name: "Hugh Jass", address: "123 Nowhere Fast Ave.\nSmiths Village FL 34000"),
     ]
     try! database.save(previewPeople)
     return database
   }
 }
 
-struct NewPerson: Codable, Equatable, PersistableRecord {
-  static let databaseTableName: String = "person"
-  
-  var name: String
-  var address: String
-}
-
 struct Person: Codable, Equatable, PersistableRecord, FetchableRecord, TableRecord, Identifiable {
-  var id: Int64
-  var name: String
-  var address: String
+  var id: ID<Int64> = nil
+  var name: String = ""
+  var address: String = ""
 }

@@ -15,12 +15,13 @@ struct PeopleFeature {
   @Dependency(Database.self) var database
 
   enum ConfirmationAction {
-    case deletePerson(Int64)
+    case deletePerson(ID<Int64>)
   }
   
   @ObservableState
   struct State {
     @Presents var confirm: ConfirmationDialogState<ConfirmationAction>?
+    @Presents var person: PersonFeature.State?
     var people: IdentifiedArrayOf<Person> = []
     
     init() {
@@ -35,9 +36,12 @@ struct PeopleFeature {
   }
   
   enum Action: BindableAction {
+    case addButtonTapped
     case confirm(PresentationAction<ConfirmationAction>)
+    case person(PresentationAction<PersonFeature.Action>)
     case binding(BindingAction<State>)
-    case onDeleteButtonPressed(Int64)
+    case onDeleteButtonPressed(ID<Int64>)
+    case onRowTapped(Person)
     case onPullToRefresh
   }
   
@@ -45,6 +49,9 @@ struct PeopleFeature {
     BindingReducer()
     Reduce { state, action in
       switch action {
+      case .addButtonTapped:
+        state.person = .init()
+        return .none
       case let .confirm(.presented(action)):
         switch action {
         case let .deletePerson(id):
@@ -58,6 +65,14 @@ struct PeopleFeature {
           return .none
         }
       case .confirm:
+        return .none
+      case let .person(.presented(.delegate(action))):
+        switch action {
+        case .saved:
+          state.fetchPeople()
+          return .none
+        }
+      case .person:
         return .none
       case .binding:
         return .none
@@ -80,14 +95,20 @@ struct PeopleFeature {
       case .onPullToRefresh:
         state.fetchPeople()
         return .none
+      case let .onRowTapped(person):
+        state.person = .init(person: person)
+        return .none
       }
     }
     .ifLet(\.$confirm, action: \.confirm)
+    .ifLet(\.$person, action: \.person) {
+      PersonFeature()
+    }
   }
 }
 
 struct PeopleView: View {
-  var store: StoreOf<PeopleFeature>
+  @Bindable var store: StoreOf<PeopleFeature>
   @Environment(\.horizontalSizeClass) var horizontalSizeClass
 
   public var body: some View {
@@ -102,15 +123,18 @@ struct PeopleView: View {
                   .lineLimit(nil)
               }
               .frame(maxWidth: .infinity, alignment: .leading)
-              Button {
-                store.send(.onDeleteButtonPressed(person.id))
-              } label: {
-                Image(systemName: "trash")
-                  .foregroundStyle(Color.red)
-              }
-              .contentShape(Rectangle())
+//              Button {
+//                store.send(.onDeleteButtonPressed(person.id))
+//              } label: {
+//                Image(systemName: "trash")
+//                  .foregroundStyle(Color.red)
+//              }
+//              .contentShape(Rectangle())
             }
             .padding(.vertical, 4)
+            .onTapGesture {
+              store.send(.onRowTapped(person))
+            }
           } else {
             HStack {
               Text(person.name)
@@ -124,7 +148,17 @@ struct PeopleView: View {
           store.send(.onPullToRefresh)
         }
       }
+      .toolbar {
+        Button {
+          store.send(.addButtonTapped)
+        } label: {
+          Image(systemName: "plus")
+        }
+      }
       .confirmationDialog(store: store.scope(state: \.$confirm, action: \.confirm))
+      .sheet(item: $store.scope(state: \.person, action: \.person)) { store in
+        PersonView(store: store)
+      }
     }
   }
 }
