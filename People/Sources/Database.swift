@@ -94,4 +94,10 @@ struct Person: Codable, Equatable, PersistableRecord, FetchableRecord, TableReco
   var id: ID<Int64> = nil
   var name: String = ""
   var address: String = ""
+  
+  mutating func prepareForValidation() {
+    name = name.trimmingCharacters(in: .whitespacesAndNewlines)
+    address = address.trimmingCharacters(in: .whitespacesAndNewlines)
+    address = address.replacingOccurrences(of: "\r\n", with: "\n").replacingOccurrences(of: "\r", with: "\n")
+  }
 }

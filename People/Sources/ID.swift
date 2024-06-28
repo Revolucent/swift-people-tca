@@ -8,33 +8,70 @@
 import Foundation
 import GRDB
 
-enum Value<Stored: Hashable & Comparable & Codable & DatabaseValueConvertible>: Hashable {
+infix operator =~=: ComparisonPrecedence
+
+protocol IDEquatable {
+  func idEquatable(with other: Self) -> Bool
+}
+
+func =~= <ID: IDEquatable>(lhs: ID, rhs: ID) -> Bool {
+  lhs.idEquatable(with: rhs)
+}
+
+enum ID<Stored: Hashable & Codable & DatabaseValueConvertible>: Hashable {
   case stored(Stored)
   case ephemeral(UUID)
   
-  init(value: Stored? = nil) {
-    if let value {
-      self = .stored(value)
+  var value: Stored? {
+    switch self {
+    case let .stored(stored):
+      stored
+    case .ephemeral:
+      nil
+    }
+  }
+  
+  var isEphemeral: Bool {
+    switch self {
+    case .ephemeral:
+      true
+    case .stored:
+      false
+    }
+  }
+  
+  init(stored: Stored? = nil) {
+    if let stored {
+      self = .stored(stored)
+    } else {
+      self = .ephemeral(UUID())
+    }
+  }
+}
+
+extension ID: Codable {
+  init(from decoder: any Decoder) throws {
+    let container = try decoder.singleValueContainer()
+    if let stored = try container.decode(Stored?.self) {
+      self = .stored(stored)
     } else {
       self = .ephemeral(UUID())
     }
   }
   
-  var value: Stored? {
-    switch self {
-    case let .stored(value):
-      return value
-    case .ephemeral:
-      return nil
-    }
-  }
-  
-  var isEphemeral: Bool {
-    value == nil
+  func encode(to encoder: any Encoder) throws {
+    var container = encoder.singleValueContainer()
+    try container.encode(value)
   }
 }
 
-extension Value: Comparable {
+extension ID: ExpressibleByNilLiteral {
+  init(nilLiteral: ()) {
+    self = .ephemeral(UUID())
+  }
+}
+
+extension ID: Comparable where Stored: Comparable {
   static func < (lhs: Self, rhs: Self) -> Bool {
     switch (lhs, rhs) {
     case let (.stored(lhs), .stored(rhs)):
@@ -49,74 +86,32 @@ extension Value: Comparable {
   }
 }
 
-extension Value: ExpressibleByNilLiteral {
-  init(nilLiteral: ()) {
-    self = .ephemeral(UUID())
-  }
-}
-
-extension Value: Codable {
-  init(from decoder: any Decoder) throws {
-    let container = try decoder.singleValueContainer()
-    try self.init(value: container.decode(Stored?.self))
-  }
-  
-  func encode(to encoder: any Encoder) throws {
-    var container = encoder.singleValueContainer()
-    try container.encode(value)
-  }
-}
-
-extension Value: DatabaseValueConvertible {
-  static func fromDatabaseValue(_ dbValue: DatabaseValue) -> Value<Stored>? {
-    .init(value: Stored.fromDatabaseValue(dbValue))
-  }
-  
-  var databaseValue: DatabaseValue {
-    value?.databaseValue ?? .null
-  }
-}
-
-struct ID<Stored: Hashable & Comparable & Codable & DatabaseValueConvertible>: Hashable {
-  private let _value: Value<Stored>
-  
-  init(value: Stored? = nil) {
-    _value = .init(value: value)
-  }
-  
-  var value: Stored? {
-    _value.value
-  }
-  
-  var isEphemeral: Bool {
-    _value.isEphemeral
-  }
-}
-
-extension ID: ExpressibleByNilLiteral {
-  init(nilLiteral: ()) {
-    self.init()
-  }
-}
-
-extension ID: Codable {
-  init(from decoder: any Decoder) throws {
-    let container = try decoder.singleValueContainer()
-    _value = try container.decode(Value<Stored>.self)
-  }
-  
-  func encode(to encoder: any Encoder) throws {
-    var container = encoder.singleValueContainer()
-    try container.encode(_value)
-  }
-}
-
 extension ID: DatabaseValueConvertible {
   static func fromDatabaseValue(_ dbValue: DatabaseValue) -> ID<Stored>? {
-    ID(value: Stored.fromDatabaseValue(dbValue))
+    ID(stored: Stored.fromDatabaseValue(dbValue))
   }
   
   var databaseValue: DatabaseValue {
     value?.databaseValue ?? .null
+  }
+}
+
+extension ID: IDEquatable {
+  func idEquatable(with other: ID<Stored>) -> Bool {
+    switch (self, other) {
+    case let (.stored(lhs), .stored(rhs)):
+      lhs == rhs
+    case (.ephemeral, .ephemeral):
+      true
+    default:
+      false
+    }
+  }
+}
+
+extension Array: IDEquatable where Element: IDEquatable {
+  func idEquatable(with other: [Element]) -> Bool {
+    guard count == other.count else { return false }
+    return zip(self, other).allSatisfy { $0.0 =~= $0.1 }
   }
 }
