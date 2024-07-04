@@ -18,10 +18,16 @@ struct PeopleFeature {
     case deletePerson(ID<Int64>)
   }
   
+  @Reducer
+  enum Destination {
+  case person(PersonFeature)
+  case stupid(StupidFeature)
+  }
+  
   @ObservableState
   struct State {
     @Presents var confirm: ConfirmationDialogState<ConfirmationAction>?
-    @Presents var person: PersonFeature.State?
+    @Presents var destination: Destination.State?
     var people: IdentifiedArrayOf<Person> = []
     
     init() {
@@ -38,7 +44,7 @@ struct PeopleFeature {
   enum Action: BindableAction {
     case addButtonTapped
     case confirm(PresentationAction<ConfirmationAction>)
-    case person(PresentationAction<PersonFeature.Action>)
+    case destination(PresentationAction<Destination.Action>)
     case binding(BindingAction<State>)
     case onDeleteButtonTapped(ID<Int64>)
     case onRowTapped(Person)
@@ -50,7 +56,7 @@ struct PeopleFeature {
     Reduce { state, action in
       switch action {
       case .addButtonTapped:
-        state.person = .init()
+        state.destination = .person(.init())
         return .none
       case let .confirm(.presented(action)):
         switch action {
@@ -66,44 +72,43 @@ struct PeopleFeature {
         }
       case .confirm:
         return .none
-      case let .person(.presented(.delegate(action))):
-        switch action {
+      case .destination(.presented(.person(.delegate(let delegate)))):
+        switch delegate {
         case .saved:
           state.fetchPeople()
           return .none
         }
-      case .person:
+      case .destination:
         return .none
       case .binding:
         return .none
-      case let .onDeleteButtonTapped(id):
-        guard let person = state.people[id: id] else {
-          return .none
-        }
-        state.confirm = ConfirmationDialogState(
-          title: TextState("Are you sure you want to delete \(person.name)?"),
-          message: TextState("Are you sure you want to delete \(person.name)? This action cannot be undone."),
-          buttons: [
-            .cancel(TextState("Don't Delete")),
-            .destructive(
-              TextState("Delete"),
-              action: .send(.deletePerson(id))
-            )
-         ]
-        )
+      case .onDeleteButtonTapped:
+        state.destination = .stupid(.init())
+//        guard let person = state.people[id: id] else {
+//          return .none
+//        }
+//        state.confirm = ConfirmationDialogState(
+//          title: TextState("Are you sure you want to delete \(person.name)?"),
+//          message: TextState("Are you sure you want to delete \(person.name)? This action cannot be undone."),
+//          buttons: [
+//            .cancel(TextState("Don't Delete")),
+//            .destructive(
+//              TextState("Delete"),
+//              action: .send(.deletePerson(id))
+//            )
+//         ]
+//        )
         return .none
       case .onPullToRefresh:
         state.fetchPeople()
         return .none
       case let .onRowTapped(person):
-        state.person = .init(person: person)
+        state.destination = .person(.init(person: person))
         return .none
       }
     }
     .ifLet(\.$confirm, action: \.confirm)
-    .ifLet(\.$person, action: \.person) {
-      PersonFeature()
-    }
+    .ifLet(\.$destination, action: \.destination)
   }
 }
 
@@ -142,8 +147,12 @@ struct PeopleView: View {
         }
       }
       .confirmationDialog(store: store.scope(state: \.$confirm, action: \.confirm))
-      .sheet(item: $store.scope(state: \.person, action: \.person)) { store in
+      .sheet(item: $store.scope(state: \.destination?.person, action: \.destination.person)) { store in
         PersonView(store: store)
+          .interactiveDismissDisabled()
+      }
+      .sheet(item: $store.scope(state: \.destination?.stupid, action: \.destination.stupid)) { store in
+        StupidView(store: store)
       }
     }
   }

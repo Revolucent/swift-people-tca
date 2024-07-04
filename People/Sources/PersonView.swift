@@ -14,8 +14,13 @@ struct PersonFeature {
   @Dependency(Database.self) var database
   @Dependency(\.dismiss) var dismiss
   
+  enum CancellationAction {
+    case cancel
+  }
+  
   @ObservableState
   struct State: Equatable {
+    @Presents var cancellation: AlertState<CancellationAction>?
     @ObservationStateIgnored private var originalPerson: Person
     var person: Person
     var validations = ValidationState<Person>()
@@ -35,6 +40,8 @@ struct PersonFeature {
     }
     
     case binding(BindingAction<State>)
+    case cancellation(PresentationAction<CancellationAction>)
+    case cancelButtonTapped
     case delegate(Delegate)
     case saveButtonTapped
   }
@@ -45,9 +52,40 @@ struct PersonFeature {
       switch action {
       case .binding:
         return .none
+      case let .cancellation(.presented(action)):
+        switch action {
+        case .cancel:
+          return .run { _ in
+            await dismiss()
+          }
+        }
+      case .cancellation:
+        return .none
+      case .cancelButtonTapped:
+        guard state.isDirty else {
+          return .run { _ in
+            await dismiss()
+          }
+        }
+        state.cancellation = AlertState<CancellationAction> {
+          TextState("Are you sure you want to discard your changes?")
+        } actions: {
+          ButtonState(role: .cancel) {
+            TextState("Cancel")
+          }
+          ButtonState(role: .destructive, action: .cancel) {
+            TextState("Discard")
+          }
+        }
+        return .none
       case .delegate:
         return .none
       case .saveButtonTapped:
+        guard state.isDirty else {
+          return .run { _ in
+            await dismiss()
+          }
+        }
         let validateName = Validate<Person> { person in
           person.name.isNotEmpty.else("Name should not be empty.")
           person.name.count(greaterThanOrEqualTo: 4).else("Name should contain at least 4 characters.")
@@ -61,16 +99,17 @@ struct PersonFeature {
           validateName
           validateAddress
         }
-        if state.validations.allValid && state.isDirty {
-          try! database.save(state.person)
-          return .run { send in
-            await send(.delegate(.saved))
-            await dismiss()
-          }
+        guard state.validations.allValid else {
+          return .none
         }
-        return .none
+        try! database.save(state.person)
+        return .run { send in
+          await send(.delegate(.saved))
+          await dismiss()
+        }
       }
     }
+    .ifLet(\.$cancellation, action: \.cancellation)
   }
 }
 
@@ -88,9 +127,18 @@ struct PersonView: View {
             .lineLimit(5)
         }
       }
+      .navigationTitle("Person")
+      .alert(store: store.scope(state: \.$cancellation, action: \.cancellation))
       .toolbar {
-        Button("Save") {
-          store.send(.saveButtonTapped)
+        ToolbarItem(placement: .cancellationAction) {
+          Button("Cancel") {
+            store.send(.cancelButtonTapped)
+          }
+        }
+        ToolbarItem(placement: .confirmationAction) {
+          Button("Save") {
+            store.send(.saveButtonTapped)
+          }
         }
       }
     }
