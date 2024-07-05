@@ -32,6 +32,26 @@ struct PersonFeature {
     var isDirty: Bool {
       originalPerson != person
     }
+    
+    mutating func validate(scope: ValidationScope<Person> = .model) {
+      let validateName = Validate<Person> { person in
+        person.name.isNotEmpty.else("Name should not be empty.")
+        person.name.count(greaterThanOrEqualTo: 4).else("Name should contain at least 4 characters.")
+      }
+      let validateAddress = Validate<Person> { person in
+        person.address.isNotEmpty.else("Address should not be empty.")
+        person.address.count(greaterThanOrEqualTo: 20).else("Address must contain at least 20 characters.")
+      }
+      person.prepareForValidation()
+      validations.validate(person, scope: scope) {
+        validateName
+        validateAddress
+      }
+    }
+  
+    mutating func validate<Value>(_ validationKey: KeyPath<Person, Value>) {
+      validate(scope: .key(validationKey))
+    }
   }
   
   enum Action: BindableAction {
@@ -39,10 +59,12 @@ struct PersonFeature {
       case saved
     }
     
+    case addressLostFocus
     case binding(BindingAction<State>)
     case cancellation(PresentationAction<CancellationAction>)
     case cancelButtonTapped
     case delegate(Delegate)
+    case nameLostFocus
     case saveButtonTapped
   }
   
@@ -50,6 +72,9 @@ struct PersonFeature {
     BindingReducer()
     Reduce { state, action in
       switch action {
+      case .addressLostFocus:
+        state.validate(\.address)
+        return .none
       case .binding:
         return .none
       case let .cancellation(.presented(action)):
@@ -80,28 +105,20 @@ struct PersonFeature {
         return .none
       case .delegate:
         return .none
+      case .nameLostFocus:
+        state.validate(\.name)
+        return .none
       case .saveButtonTapped:
         guard state.isDirty else {
           return .run { _ in
             await dismiss()
           }
         }
-        let validateName = Validate<Person> { person in
-          person.name.isNotEmpty.else("Name should not be empty.")
-          person.name.count(greaterThanOrEqualTo: 4).else("Name should contain at least 4 characters.")
-        }
-        let validateAddress = Validate<Person> { person in
-          person.address.isNotEmpty.else("Address should not be empty.")
-          person.address.count(greaterThanOrEqualTo: 20).else("Address must contain at least 20 characters.")
-        }
-        state.person.prepareForValidation()
-        state.validations.validate(state.person) {
-          validateName
-          validateAddress
-        }
+        state.validate()
         guard state.validations.allValid else {
           return .none
         }
+        state.person.updatedAt = .now
         try! database.save(state.person)
         return .run { send in
           await send(.delegate(.saved))
@@ -114,17 +131,33 @@ struct PersonFeature {
 }
 
 struct PersonView: View {
+  enum Focus: Hashable {
+    case name
+    case address
+  }
+  
   @Bindable var store: StoreOf<PersonFeature>
+  @FocusState var isFocused: Focus?
   
   var body: some View {
     NavigationStack {
       Form {
         ValidationResultView(store.validations.name) {
           TextField("Name", text: $store.person.name)
+            .focused($isFocused, equals: .name)
+            .onChange(of: isFocused) { old, new in
+              guard old == .name else { return }
+              store.send(.nameLostFocus)
+            }
         }
         ValidationResultView(store.validations.address) {
           TextField("Address", text: $store.person.address, axis: .vertical)
             .lineLimit(5)
+            .focused($isFocused, equals: .address)
+            .onChange(of: isFocused) { old, new in
+              guard old == .address else { return }
+              store.send(.addressLostFocus)
+            }
         }
       }
       .navigationTitle("Person")

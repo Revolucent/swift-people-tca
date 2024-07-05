@@ -15,18 +15,18 @@ struct PeopleFeature {
   @Dependency(Database.self) var database
 
   enum ConfirmationAction {
-    case deletePerson(ID<Int64>)
+    case deletePerson(Person)
   }
   
   @Reducer
   enum Destination {
-  case person(PersonFeature)
-  case stupid(StupidFeature)
+    case person(PersonFeature)
+    case stupid(StupidFeature)
   }
   
   @ObservableState
   struct State {
-    @Presents var confirm: ConfirmationDialogState<ConfirmationAction>?
+    @Presents var confirm: AlertState<ConfirmationAction>?
     @Presents var destination: Destination.State?
     var people: IdentifiedArrayOf<Person> = []
     
@@ -46,7 +46,7 @@ struct PeopleFeature {
     case confirm(PresentationAction<ConfirmationAction>)
     case destination(PresentationAction<Destination.Action>)
     case binding(BindingAction<State>)
-    case onDeleteButtonTapped(ID<Int64>)
+    case onDeleteButtonTapped(Person)
     case onRowTapped(Person)
     case onPullToRefresh
   }
@@ -60,11 +60,10 @@ struct PeopleFeature {
         return .none
       case let .confirm(.presented(action)):
         switch action {
-        case let .deletePerson(id):
-          guard let deleted = state.people[id: id] else { return .none }
+        case let .deletePerson(person):
           do {
-            try database.delete(deleted)
-            state.people.remove(id: id)
+            try database.delete(person)
+            state.people.remove(person)
           } catch {
             
           }
@@ -76,28 +75,23 @@ struct PeopleFeature {
         switch delegate {
         case .saved:
           state.fetchPeople()
-          return .none
         }
+        return .none
       case .destination:
         return .none
       case .binding:
         return .none
-      case .onDeleteButtonTapped:
-        state.destination = .stupid(.init())
-//        guard let person = state.people[id: id] else {
-//          return .none
-//        }
-//        state.confirm = ConfirmationDialogState(
-//          title: TextState("Are you sure you want to delete \(person.name)?"),
-//          message: TextState("Are you sure you want to delete \(person.name)? This action cannot be undone."),
-//          buttons: [
-//            .cancel(TextState("Don't Delete")),
-//            .destructive(
-//              TextState("Delete"),
-//              action: .send(.deletePerson(id))
-//            )
-//         ]
-//        )
+      case let .onDeleteButtonTapped(person):
+        state.confirm = AlertState<ConfirmationAction> {
+          TextState("Are you sure you want to delete \(person.name)?")
+        } actions: {
+          ButtonState(role: .cancel) {
+            TextState("Cancel")
+          }
+          ButtonState(role: .destructive, action: .deletePerson(person)) {
+            TextState("Delete")
+          }
+        }
         return .none
       case .onPullToRefresh:
         state.fetchPeople()
@@ -114,30 +108,18 @@ struct PeopleFeature {
 
 struct PeopleView: View {
   @Bindable var store: StoreOf<PeopleFeature>
-  @Environment(\.horizontalSizeClass) var horizontalSizeClass
 
   public var body: some View {
     NavigationStack {
       List {
         ForEach(store.people) { person in
-          if horizontalSizeClass == .compact {
-            Row(person: person) {
-              store.send(.onRowTapped(person))
-            } delete: {
-              store.send(.onDeleteButtonTapped(person.id))
-            }
-          } else {
-            HStack {
-              Text(person.name)
-                .frame(width: 200, alignment: .leading)
-              Text(person.address).lineLimit(nil)
-            }
+          Row(person: person) {
+            store.send(.onRowTapped(person))
+          } delete: {
+            store.send(.onDeleteButtonTapped(person))
           }
         }
         .navigationTitle("People")
-        .refreshable {
-          store.send(.onPullToRefresh)
-        }
       }
       .toolbar {
         Button {
@@ -146,7 +128,7 @@ struct PeopleView: View {
           Image(systemName: "plus")
         }
       }
-      .confirmationDialog(store: store.scope(state: \.$confirm, action: \.confirm))
+      .alert(store: store.scope(state: \.$confirm, action: \.confirm))
       .sheet(item: $store.scope(state: \.destination?.person, action: \.destination.person)) { store in
         PersonView(store: store)
           .interactiveDismissDisabled()
@@ -169,6 +151,7 @@ struct Row: View {
         Text(person.name)
         Text(person.address)
           .lineLimit(nil)
+        Text("\(person.updatedAt)")
       }
       .frame(maxWidth: .infinity, alignment: .leading)
       .contentShape(Rectangle())

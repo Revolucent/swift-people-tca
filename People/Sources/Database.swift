@@ -67,6 +67,7 @@ class Database {
         table.autoIncrementedPrimaryKey("id").notNull()
         table.column("name", .text).notNull()
         table.column("address", .text).notNull()
+        table.column("updatedAt", .datetime).notNull().defaults(sql: "CURRENT_TIMESTAMP")
         table.uniqueKey(["name", "address"])
       }
     }
@@ -94,6 +95,7 @@ struct Person: Codable, Equatable, PersistableRecord, FetchableRecord, TableReco
   var id: ID<Int64> = nil
   var name: String = ""
   var address: String = ""
+  var updatedAt: Date = .now
   
   mutating func prepareForValidation() {
     name = name.trimmingCharacters(in: .whitespacesAndNewlines)

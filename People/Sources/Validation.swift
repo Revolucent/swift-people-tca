@@ -1,7 +1,7 @@
 import ComposableArchitecture
 import SwiftUI
 
-enum ValidationKey<Model>: Hashable {
+enum ValidationScope<Model>: Hashable {
   case model
   case key(PartialKeyPath<Model>)
 }
@@ -28,9 +28,9 @@ struct ValidationState<Model>: Equatable {
   var allValid: Bool {
     validations.values.allSatisfy { $0.errors.isEmpty }
   }
-  private var validations: [ValidationKey<Model>: ValidationResult] = [:]
+  private var validations: [ValidationScope<Model>: ValidationResult] = [:]
   
-  subscript(key: ValidationKey<Model>) -> ValidationResult {
+  subscript(key: ValidationScope<Model>) -> ValidationResult {
     get { validations[key] ?? .valid }
     set { validations[key] = newValue }
   }
@@ -45,33 +45,49 @@ struct ValidationState<Model>: Equatable {
     set { self[keyPath] = newValue }
   }
   
-  mutating func validate(_ model: Model, with validator: Validate<Model>) {
+  mutating func clear() {
     validations = validations.mapValues { _ in .valid }
-    validator.validate(model, &self)
-  }
- 
-  mutating func validate(_ model: Model, @ValidationBuilder<Model> with build: () -> Validate<Model>) {
-    validate(model, with: build())
   }
   
-  mutating func validate(_ model: Model, @ValidationBuilder<Model> with build: (ModelProxy<Model>) -> Validate<Model>) {
-    validate(model, with: build(.init()))
+  mutating func validate(_ model: Model, scope: ValidationScope<Model>, with validator: Validate<Model>) {
+    if scope == .model {
+      clear()
+    } else {
+      validations[scope] = .valid
+    }
+    validator.validate(model, scope, &self)
+  }
+ 
+  mutating func validate(_ model: Model, scope: ValidationScope<Model> = .model, @ValidationBuilder<Model> with build: () -> Validate<Model>) {
+    validate(model, scope: scope, with: build())
+  }
+  
+  mutating func validate(_ model: Model, scope: ValidationScope<Model> = .model, @ValidationBuilder<Model> with build: (ModelProxy<Model>) -> Validate<Model>) {
+    validate(model, scope: scope, with: build(.init()))
+  }
+  
+  mutating func validate<Value>(_ model: Model, scope keyPath: KeyPath<Model, Value>, @ValidationBuilder<Model> with build: () -> Validate<Model>) {
+    validate(model, scope: .key(keyPath), with: build())
+  }
+  
+  mutating func validate<Value>(_ model: Model, scope keyPath: KeyPath<Model, Value>, @ValidationBuilder<Model> with build: (ModelProxy<Model>) -> Validate<Model>) {
+    validate(model, scope: .key(keyPath), with: build(.init()))
   }
 }
 
 @resultBuilder
 struct ValidationBuilder<Model> {
   static func buildBlock(_ components: Validate<Model>...) -> Validate<Model> {
-    Validate { model, state in
+    Validate { model, scope, state in
       for component in components {
-        component.validate(model, &state)
+        component.validate(model, scope, &state)
       }
     }
   }
 }
 
 struct Validate<Model> {
-  typealias Validation = (Model, inout ValidationState<Model>) -> Void
+  typealias Validation = (Model, ValidationScope<Model>, inout ValidationState<Model>) -> Void
   let validate: Validation
   
   init(validate: @escaping Validation) {
@@ -94,22 +110,23 @@ enum Validity: Equatable {
 
 struct ModelValidator<Model> {
   typealias Validation = (Model) -> Validity
-  let validationKey: ValidationKey<Model>
+  let scope: ValidationScope<Model>
   let validate: Validation
   
-  init(validationKey: ValidationKey<Model> = .model, validate: @escaping Validation) {
-    self.validationKey = validationKey
+  init(scope: ValidationScope<Model> = .model, validate: @escaping Validation) {
+    self.scope = scope
     self.validate = validate
   }
   
   init<Value>(keyPath: KeyPath<Model, Value>, validate: @escaping Validation) {
-    self.init(validationKey: .key(keyPath), validate: validate)
+    self.init(scope: .key(keyPath), validate: validate)
   }
   
   func `else`(_ error: LocalizedStringKey) -> Validate<Model> {
-    .init { model, validations in
+    .init { model, scope, validations in
+      guard self.scope == scope || self.scope == .model || scope == .model else { return }
       if validate(model) == .invalid {
-        validations[validationKey].errors.append(error)
+        validations[self.scope].errors.append(error)
       }
     }
   }
