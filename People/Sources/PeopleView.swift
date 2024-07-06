@@ -28,6 +28,7 @@ struct PeopleFeature {
   struct State {
     @Presents var confirm: AlertState<ConfirmationAction>?
     @Presents var destination: Destination.State?
+    var genders: IdentifiedArrayOf<Gender> = []
     var people: IdentifiedArrayOf<Person> = []
     
     init() {
@@ -43,6 +44,7 @@ struct PeopleFeature {
   
   enum Action: BindableAction {
     case addButtonTapped
+    case appear
     case confirm(PresentationAction<ConfirmationAction>)
     case destination(PresentationAction<Destination.Action>)
     case binding(BindingAction<State>)
@@ -57,6 +59,9 @@ struct PeopleFeature {
       switch action {
       case .addButtonTapped:
         state.destination = .person(.init())
+        return .none
+      case .appear:
+        state.genders = try! database.fetchGenders()
         return .none
       case let .confirm(.presented(action)):
         switch action {
@@ -113,7 +118,7 @@ struct PeopleView: View {
     NavigationStack {
       List {
         ForEach(store.people) { person in
-          Row(person: person) {
+          Row(person: person, genders: store.genders) {
             store.send(.onRowTapped(person))
           } delete: {
             store.send(.onDeleteButtonTapped(person))
@@ -127,6 +132,9 @@ struct PeopleView: View {
         } label: {
           Image(systemName: "plus")
         }
+      }
+      .onAppear {
+        store.send(.appear)
       }
       .alert(store: store.scope(state: \.$confirm, action: \.confirm))
       .sheet(item: $store.scope(state: \.destination?.person, action: \.destination.person)) { store in
@@ -142,6 +150,7 @@ struct PeopleView: View {
 
 struct Row: View {
   let person: Person
+  let genders: IdentifiedArrayOf<Gender>
   let action: () -> Void
   let delete: () -> Void
   
@@ -151,7 +160,12 @@ struct Row: View {
         Text(person.name)
         Text(person.address)
           .lineLimit(nil)
-        Text("\(person.updatedAt)")
+        if let gender = genders[id: person.gender] {
+          HStack {
+            Text("Gender:")
+            Text(gender.name)
+          }
+        }
       }
       .frame(maxWidth: .infinity, alignment: .leading)
       .contentShape(Rectangle())

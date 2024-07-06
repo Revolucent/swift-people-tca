@@ -60,12 +60,22 @@ class Database {
     try IdentifiedArray(uniqueElements: fetchAll())
   }
   
+  func fetchGenders() throws -> IdentifiedArrayOf<Gender> {
+    try fetchIdentifiedArray(Gender.order(Column("sort"), Column("name")))
+  }
+  
   private func migrate() throws {
     var migrator = DatabaseMigrator()
     migrator.registerMigration("v1") { db in
+      try db.create(table: "gender") { table in
+        table.column("code", .text).primaryKey().notNull()
+        table.column("name", .text).unique().notNull()
+        table.column("sort", .integer).notNull().defaults(to: 100)
+      }
       try db.create(table: "person") { table in
         table.autoIncrementedPrimaryKey("id").notNull()
         table.column("name", .text).notNull()
+        table.column("gender", .text).notNull().references("gender", column: "code")
         table.column("address", .text).notNull()
         table.column("updatedAt", .datetime).notNull().defaults(sql: "CURRENT_TIMESTAMP")
         table.uniqueKey(["name", "address"])
@@ -78,6 +88,17 @@ class Database {
 extension Database: DependencyKey {
   static var liveValue: Database {
     let database = try! Database()
+    let previewGenders = [
+      Gender(code: "m", name: "Male", sort: 0),
+      Gender(code: "f", name: "Female", sort: 1),
+      Gender(code: "ns", name: "Not Specified", sort: 2),
+      Gender(code: "mv", name: "Maverique"),
+      Gender(code: "nb", name: "Non-Binary"),
+      Gender(code: "gq", name: "Genderquivering"),
+      Gender(code: "gp", name: "Genderpunk"),
+      Gender(code: "gv", name: "Gendervoid")
+    ]
+    try! database.save(previewGenders)
     let previewPeople = [
       Person(name: "Genghis Khan", address: "555 5th Street\nQueens NY 10000"),
       Person(name: "Flip MacGillicuddy", address: "103 Whiskey Road\nDublin FL 34222"),
@@ -91,9 +112,17 @@ extension Database: DependencyKey {
   }
 }
 
+struct Gender: Codable, Equatable, PersistableRecord, FetchableRecord, TableRecord, Identifiable {
+  var id: String { code }
+  var code: String
+  var name: String
+  var sort: Int64 = 100
+}
+
 struct Person: Codable, Equatable, PersistableRecord, FetchableRecord, TableRecord, Identifiable {
   var id: ID<Int64> = nil
   var name: String = ""
+  var gender: String = "m"
   var address: String = ""
   var updatedAt: Date = .now
   

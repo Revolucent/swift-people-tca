@@ -14,7 +14,7 @@ struct NavexFeature {
   enum Path {
     case detail(NavexDetailFeature)
   }
-  
+
   @ObservableState
   struct State {
     var path = StackState<Path.State>()
@@ -57,6 +57,7 @@ struct NavexView: View {
       switch pathStore.case {
       case let .detail(store):
         NavexDetailView(store: store)
+          .navigationTitle("Details")
       }
     }
   }

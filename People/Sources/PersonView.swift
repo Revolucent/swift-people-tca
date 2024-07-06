@@ -7,6 +7,7 @@
 
 import ComposableArchitecture
 import Foundation
+import GRDB
 import SwiftUI
 
 @Reducer
@@ -21,6 +22,7 @@ struct PersonFeature {
   @ObservableState
   struct State: Equatable {
     @Presents var cancellation: AlertState<CancellationAction>?
+    var genders: IdentifiedArrayOf<Gender> = []
     @ObservationStateIgnored private var originalPerson: Person
     var person: Person
     var validations = ValidationState<Person>()
@@ -60,6 +62,7 @@ struct PersonFeature {
     }
     
     case addressLostFocus
+    case appear
     case binding(BindingAction<State>)
     case cancellation(PresentationAction<CancellationAction>)
     case cancelButtonTapped
@@ -74,6 +77,9 @@ struct PersonFeature {
       switch action {
       case .addressLostFocus:
         state.validate(\.address)
+        return .none
+      case .appear:
+        state.genders = try! database.fetchGenders()
         return .none
       case .binding:
         return .none
@@ -159,6 +165,14 @@ struct PersonView: View {
               store.send(.addressLostFocus)
             }
         }
+        Picker("Gender", selection: $store.person.gender) {
+          ForEach(store.genders) { gender in
+            Text(gender.name).tag(gender.id)
+          }
+        }
+      }
+      .onAppear {
+        store.send(.appear)
       }
       .navigationTitle("Person")
       .alert(store: store.scope(state: \.$cancellation, action: \.cancellation))
